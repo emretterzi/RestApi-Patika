@@ -1,113 +1,101 @@
+using Microsoft.AspNetCore.Mvc;
 using RestApi.Dto;
 
-namespace RestApi.Controllers;
+using RestApi.Service;
 
-using Microsoft.AspNetCore.Mvc;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
-using Microsoft.AspNetCore.JsonPatch;
-using Microsoft.AspNetCore.Mvc;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
-[ApiController]
-[Route("api/products")]
-public class ProductsController : ControllerBase
+namespace RestApi.Controllers
 {
-    private static List<Product> _products = new List<Product>
+    [ApiController]
+    [Route("api/products")]
+    public class ProductsController : ControllerBase
     {
-        new Product { Id = 1, Name = "Product 1", Description = "Description 1", Price = 19.99m },
-        new Product { Id = 2, Name = "Product 2", Description = "Description 2", Price = 29.99m },
-        new Product { Id = 3, Name = "Product 3", Description = "Description 3", Price = 39.99m },
-        new Product { Id = 4, Name = "Product 4", Description = "Description 4", Price = 49.99m }
-    };
+        private readonly IProductService _productService;
 
-    [HttpGet]
-    public IActionResult GetProducts()
-    {
-        return Ok(_products);
-    }
-
-    [HttpGet("{id}")]
-    public IActionResult GetProductById(int id)
-    {
-        var product = _products.FirstOrDefault(p => p.Id == id);
-        if (product == null)
+        public ProductsController(IProductService productService)
         {
-            return NotFound(); // 404 Not Found
+            _productService = productService ?? throw new ArgumentNullException(nameof(productService));
         }
 
-        return Ok(product); // 200 OK
-    }
-
-    [HttpPost]
-    public IActionResult CreateProduct([FromBody] Product product)
-    {
-        if (!ModelState.IsValid)
+        [HttpGet]
+        public IActionResult GetProducts()
         {
-            return BadRequest(ModelState); // 400 Bad Request
+            var products = _productService.GetProducts();
+            return Ok(products);
         }
 
-        product.Id = _products.Count + 1;
-        _products.Add(product);
-
-        return CreatedAtAction(nameof(GetProductById), new { id = product.Id }, product); // 201 Created
-    }
-
-    [HttpPut("{id}")]
-    public IActionResult UpdateProduct(int id, [FromBody] Product updatedProduct)
-    {
-        var existingProduct = _products.FirstOrDefault(p => p.Id == id);
-        if (existingProduct == null)
+        [HttpGet("{id}")]
+        public IActionResult GetProductById(int id)
         {
-            return NotFound(); // 404 Not Found
+            var product = _productService.GetProductById(id);
+
+            if (product == null)
+            {
+                return NotFound(); // 404 Not Found
+            }
+
+            return Ok(product); // 200 OK
         }
 
-        existingProduct.Name = updatedProduct.Name;
-        existingProduct.Description = updatedProduct.Description;
-        existingProduct.Price = updatedProduct.Price;
-
-        return Ok(existingProduct); // 200 OK
-    }
-
-    [HttpDelete("{id}")]
-    public IActionResult DeleteProduct(int id)
-    {
-        var product = _products.FirstOrDefault(p => p.Id == id);
-        if (product == null)
+        [HttpPost]
+        public IActionResult CreateProduct([FromBody] Product product)
         {
-            return NotFound(); // 404 Not Found
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState); // 400 Bad Request
+            }
+
+            _productService.CreateProduct(product);
+
+            return CreatedAtAction(nameof(GetProductById), new { id = product.Id }, product); // 201 Created
         }
 
-        _products.Remove(product);
-
-        return NoContent(); // 204 No Content
-    }
-
-    [HttpGet("list")]
-    public IActionResult ListProducts([FromQuery] string name)
-    {
-        var filteredProducts = _products.Where(p => p.Name.Contains(name, StringComparison.OrdinalIgnoreCase)).ToList();
-        return Ok(filteredProducts);
-    }
-    
-    
-    [HttpPatch("{id}")]
-    public IActionResult PatchProduct(int id, Product product)
-    {
-        var existingProduct = _products.FirstOrDefault(p => p.Id == id);
-        if (existingProduct == null)
+        [HttpPut("{id}")]
+        public IActionResult UpdateProduct(int id, [FromBody] Product updatedProduct)
         {
-            return NotFound();
+            try
+            {
+                _productService.UpdateProduct(id, updatedProduct);
+                return Ok(updatedProduct); // 200 OK
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(); // 404 Not Found
+            }
         }
 
-        existingProduct.Name = product.Name ?? existingProduct.Name;
-        existingProduct.Price = product.Price != 0 ? product.Price : existingProduct.Price;
+        [HttpDelete("{id}")]
+        public IActionResult DeleteProduct(int id)
+        {
+            try
+            {
+                _productService.DeleteProduct(id);
+                return NoContent(); // 204 No Content
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(); // 404 Not Found
+            }
+        }
 
-        return NoContent();
+        [HttpGet("list")]
+        public IActionResult ListProducts([FromQuery] string name)
+        {
+            var filteredProducts = _productService.ListProducts(name);
+            return Ok(filteredProducts);
+        }
+
+        [HttpPatch("{id}")]
+        public IActionResult PatchProduct(int id, [FromBody] Product product)
+        {
+            try
+            {
+                _productService.PatchProduct(id, product);
+                return NoContent(); // 204 No Content
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(); // 404 Not Found
+            }
+        }
     }
-
 }
